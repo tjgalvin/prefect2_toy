@@ -1,5 +1,5 @@
 
-import asyncio
+import os
 import subprocess 
 
 import numpy as np 
@@ -15,9 +15,7 @@ DOCKER_CONTAINER='nlknguyen/alpine-mpich'
 
 @task
 def make_random_array(n):
-    no_num = np.prod(n)
-    no_bytes = no_num * 8
-    print(f"Number of floats: {no_num}")
+    print(f"Number of floats: {np.prod(n)}")
     return np.random.random(n).astype('f4')
 
 @task 
@@ -26,10 +24,12 @@ def print_array(n):
 
 @task
 def find_mean(a):
+    print("Finding the mean of a")
     return a.mean()
 
 @task
 def add_arrays(a,b):
+    print("Adding the arrays a and b")
     return a + b
 
 @task
@@ -84,8 +84,8 @@ def srun_flow(some_int=1):
     task_runner=DaskTaskRunner(
         cluster_kwargs={
             "n_workers": 1, 
-            "resources": {"process": 5, "threads_per_worker": 10}, 
-            "local_directory":"/dev/shm"
+            "resources": {"process": 2, "threads_per_worker": 10}, 
+            "local_directory": os.getcwd()
         },
     )
 )
@@ -108,7 +108,7 @@ def main():
     # Here, the parallelism is not as nice as one would hope, as when a subflow
     # is entered there is now a _blocking_ operation haulting the creating further. 
     print("Running a small collection of subflows...")
-    collection = [create_run_subflow(srun_flow, some_int=si) for si in range(2)]
+    collection = [create_run_subflow(srun_flow, some_int=si) for si in range(3)]
 
     print(f"{len(collection)}")
     print('\n'.join(collection))
@@ -185,8 +185,14 @@ def create_run_subflow(func, *args, **kwargs):
         task_runner=jobq_dask
     )
 
+    print(f"{type(flow_func)=} {args=} {kwargs=}")
+
     flow_results = flow_func(*args, **kwargs).result()
 
+    print(f"Caught flow_results: {flow_results=}")
+
+    jobq_cluster.close()
+    
     return flow_results
 
 def create_run_multi_subflow(func, iterable, *args, **kwargs):
