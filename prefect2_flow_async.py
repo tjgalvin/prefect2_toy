@@ -16,6 +16,11 @@ DOCKER_CONTAINER='nlknguyen/alpine-mpich'
 # Tasks
 
 @task
+def print_hi_there():
+    print('Hi there!')
+
+
+@task
 def srun_run(some_int=99):
 
     print('Running srun business now')
@@ -70,6 +75,8 @@ async def srun_flow(some_int=1):
 async def main():
     """The main flow with a set of dummy operaitons
     """
+    print_hi_there()
+
     # The code extract below has not really worked. But, including it here
     # for reference. 
 
