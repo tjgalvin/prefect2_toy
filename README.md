@@ -30,3 +30,18 @@ pip install dask_jobqueue
 
 For completeness there is a `package_list.txt` file outlining the installed packages (in case there is anything missed from the above set of `pip` installables). 
 
+The important bit is to ensure that `prefect` version 2 (and above) is installed. `prefect` version 1 has a different API that is not compatible with this example code. 
+
+### Prefect Environment Variables
+
+As a users home space is often not available on compute nodes (`quota` limits for instance), a simple helper script has been included to configure some `prefect` settings. This file should be sourced before running the `python prefect2_flow.py` workflow. Specifically, this helper script will:
+- Change the database connection string to a local `sqlite` database via `PREFECT_ORION_DATABASE_CONNECTION_URL`
+- Change the `prefect` home location via `PREFECT_HOME`
+
+These both are simply set to the current working directly the file is sources from. 
+
+### Running
+
+If the above is carried out, then the workflow should be executable within the `prefect3.10` `conda` environment via:
+
+`python prefect2_flow.py`
