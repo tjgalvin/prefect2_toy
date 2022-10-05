@@ -14,7 +14,7 @@ DOCKER_CONTAINER='nlknguyen/alpine-mpich'
 def print_result_collection(collection):
     print(f"Printing result collection of {len(collection)=}")
     print(
-        "\n".join(
+        "\n\n\n".join(
             [c.result().strip() for c in collection]
         )
     )
@@ -37,13 +37,13 @@ async def srun_run(some_int=99):
     print(f'Received {some_int=}')
 
     random.seed(some_int)
-    rand_sleep = random.randint(3,30)
+    rand_sleep = random.randint(1,10)
     print(f"Sleeping for {rand_sleep}")
     sleep(rand_sleep)
 
     srun_str = (
-        f'srun --mpi=pmi2 -N 1 -n 1 '
-        f'singularity exec -B $(pwd) {DOCKER_CONTAINER.split("/")[1]}.sif '
+        f'srun --mpi=pmi2 -N 3 -n 60 '
+        f'singularity exec -B $(pwd) {DOCKER_CONTAINER.split("/")[1]}_latest.sif '
         f'./mpi_hello_world'
     )
 
@@ -63,8 +63,11 @@ async def srun_run(some_int=99):
 
     print(result.args)
 
-    return f"I am returning {some_int} and I was asleep for {rand_sleep} seconds"
-    
+    return ( 
+        f"I am returning {some_int} and I was asleep for {rand_sleep} seconds \n"
+        f"{result.stdout} \n"
+        f"{result.stderr} \n"
+    )
 
 # --------------------------------------
 # Flows
@@ -86,7 +89,9 @@ def make_subflow(name, count):
                 job_extra_directives=[
                     '-M galaxy',
                     '--reservation askapdev',
-                    f'-N 1',
+                    f'-N 3',
+                    '-n 60',
+                    # '--ntasks-per-node 20'
                 ],
                 interface='ipogif0',
                 job_script_prologue=[
@@ -134,7 +139,7 @@ async def main():
 
     # Database locks can still happen -- poor little sqlite
     collection = await asyncio.gather( 
-        *[make_subflow(f"Some other name {i}", i)(i) for i in range(50)]
+        *[make_subflow(f"Some other name {i}", i)(i) for i in range(4)]
     )
     print_result_collection(collection)
     
