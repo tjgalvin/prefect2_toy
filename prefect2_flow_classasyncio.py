@@ -1,7 +1,8 @@
-import copy
 import os
 import subprocess 
 import asyncio
+import random
+from time import sleep
 
 import numpy as np 
 from prefect_dask.task_runners import DaskTaskRunner
@@ -9,6 +10,15 @@ from prefect import flow, task
 from dask_jobqueue import SLURMCluster
 
 DOCKER_CONTAINER='nlknguyen/alpine-mpich'
+
+def print_result_collection(collection):
+    print(f"Printing result collection of {len(collection)=}")
+    print(
+        "\n".join(
+            [c.result().strip() for c in collection]
+        )
+    )
+
 
         
 # --------------------------------------
@@ -26,11 +36,20 @@ async def srun_run(some_int=99):
     print('Running srun business now')
     print(f'Received {some_int=}')
 
+    random.seed(some_int)
+    rand_sleep = random.randint(10,100)
+    print(f"Sleeping for {rand_sleep}")
+    sleep(rand_sleep)
+
     srun_str = (
         f'srun --mpi=pmi2 -N 1 -n 1 '
         f'singularity exec -B $(pwd) docker://{DOCKER_CONTAINER} '
         f'./mpi_hello_world'
     )
+
+    # srun_str = (
+    #     f"sleep 2 && echo finished sleeping for {some_int}"
+    # )
 
     result = subprocess.run(
         srun_str,
@@ -44,18 +63,20 @@ async def srun_run(some_int=99):
 
     print(result.args)
 
-    return result.stdout
+    return f"I am returning {some_int} and I was asleep for {rand_sleep} seconds"
     
 
 # --------------------------------------
 # Flows
-def make_subflow(name):
+def make_subflow(name, count):
     @flow(
     name=f"Silly-name-{name}",
     task_runner=DaskTaskRunner(
-            cluster_class="ScaleSLURMCluster.ScaleSLURMCluster",
+            # cluster_class="ScaleSLURMCluster.ScaleSLURMCluster",
+            cluster_class="dask_jobqueue.SLURMCluster",
             cluster_kwargs=dict(
-                cores=1,
+                n_workers=1,
+                scheduler_options=dict(dashboard_address=f':{32120+count}'),                cores=1,
                 processes=1,
                 name='Tester',
                 memory='60GB',
@@ -87,7 +108,6 @@ def make_subflow(name):
         This function is turned into a flow from the main(), using 
         the create_run_subflow function. 
         """
-        print("Running run_flow now")
         srun_result = srun_run.submit(some_int)
 
         return await srun_result
@@ -111,29 +131,16 @@ async def main():
     a = make_random_array.submit(shape)
     
     print("Running a small collection of subflows...")
-    
-    vals = [make_subflow(0)(0), make_subflow(1)(1)]
-    collection = await asyncio.gather(
-        *vals
-    )
-
-    print("Printing the collection")
-    print("\n".join([
-        c.result() for c in collection
-    ]))
 
     # Database locks can still happen -- poor little sqlite
-    # collection = await asyncio.gather( 
-    #     *[make_subflow(f"Some other name {i}")(i) for i in range(4)]
-    # )
-
-    # print("Printing the collection")
-    # print("\n".join([
-    #     c.result() for c in collection
-    # ]))
+    collection = await asyncio.gather( 
+        *[make_subflow(f"Some other name {i}", i)(i) for i in range(100)]
+    )
+    print_result_collection(collection)
     
 
 
 if __name__ == "__main__":
+    
     asyncio.run(main())
 
