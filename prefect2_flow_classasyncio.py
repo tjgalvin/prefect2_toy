@@ -43,7 +43,7 @@ async def srun_run(some_int=99):
 
     srun_str = (
         f'srun --mpi=pmi2 -N 1 -n 1 '
-        f'singularity exec -B $(pwd) docker://{DOCKER_CONTAINER} '
+        f'singularity exec -B $(pwd) {DOCKER_CONTAINER.split("/")[1]}.sif '
         f'./mpi_hello_world'
     )
 
