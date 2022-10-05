@@ -45,3 +45,29 @@ These both are simply set to the current working directly the file is sources fr
 If the above is carried out, then the workflow should be executable within the `prefect3.10` `conda` environment via:
 
 `python prefect2_flow.py`
+
+## Other thoughts and issues
+
+Below are some items that I wanted to iterate over. 
+
+### Prefect database
+
+A `postgres` database should be used the moment more than a handful of flows are running. The normal `sqlite` database relies on file locks for multi-user read/write. Simply, the application will crash as multiple concurrent connections are not able to acquire exclusive write access in time. In `postgres_database.sh` are some steps to create a compatible `postgres` database with a container. *Note* though that the `PREFECT_ORION_DATABASE_CONNECTION_URL` should contain the IP address of the compute node hosting the container -- a localhost address (which is what is currently supplied) is not appropriate. 
+
+### SLURMCluster vs ScaleSLURMCluster
+
+This will likely become a little more confusing as more experimentation is carried out. 
+
+In short, these task runners need to be fired up when the flow is invoked -- not when the larger script is started. For the `SLURMCluster` objects, some care needs to be taken to ensure that the `scale` method is invoked. This will actually submit the generated `SLURM` jobscript through to the `SLURM` schedular. 
+
+The `ScaleSLURMCluster` is intended to be the same as `SLURMCluster`, except that the `scale` method is invoked during the initialisation of the class instance. Why? It did not appear to be a case that the `scale` was automatically invoked by the `DaskTaskRunner` as it was being created. 
+
+However, upon reading the documentation for `dask_jobqueue.SLURMCluster` a little more closely, there is the `n_workers` argument. In practise, setting this to `1` via the `cluster_kwargs` of `DaskTaskRunner` does seem to give the behaviour expected. It remains to be seen how this will properly interact with the necessary changes that have yet to be made (in this test enviornment) with the `dask_jobqueue.SLURMCluster` to enable multi-node requests. Ensure multi-node requests are possible is essential to enable the `mpi` compiled ASKAP applications to run as efficently as possible. How the use of `SLURMCluster` will behave when initialised with the `n_workers=1` is not clear to me (although it probably should be at this point). 
+
+### Schedular address becoming exhausted
+
+A new dask dashboard and schedular are started for each `SLURMCluster` instance that is created when using its default parameters. Through experimentation it was found that when ~35 sub-flows were started to run concurrently that these schedulars would start to try to use the same port when creating their schedular address. This would, in turn, kill the pipeline with an `[Error 98] Address in use` error. This has been worked around by explicitly setting a (presumably) unused port number using:
+
+`                scheduler_options=dict(dashboard_address=f':{32120+count}'),`
+
+via the `cluster_kwargs` provided to the `DaskTaskRunner`. 
