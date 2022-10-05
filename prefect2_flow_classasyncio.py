@@ -37,7 +37,7 @@ async def srun_run(some_int=99):
     print(f'Received {some_int=}')
 
     random.seed(some_int)
-    rand_sleep = random.randint(10,100)
+    rand_sleep = random.randint(3,30)
     print(f"Sleeping for {rand_sleep}")
     sleep(rand_sleep)
 
@@ -134,7 +134,7 @@ async def main():
 
     # Database locks can still happen -- poor little sqlite
     collection = await asyncio.gather( 
-        *[make_subflow(f"Some other name {i}", i)(i) for i in range(100)]
+        *[make_subflow(f"Some other name {i}", i)(i) for i in range(50)]
     )
     print_result_collection(collection)
     

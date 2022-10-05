@@ -71,3 +71,28 @@ A new dask dashboard and schedular are started for each `SLURMCluster` instance 
 `                scheduler_options=dict(dashboard_address=f':{32120+count}'),`
 
 via the `cluster_kwargs` provided to the `DaskTaskRunner`. 
+
+### Connection pool to database
+
+A sqlalchemy `QueuePool` error will be raised if too many sub-flows using a `SLURMCluster` are created too quickly. Essemtially, the database engine can not keep up with the number of incoming transactions, and the limited set of open connections which are persistent and intended for reuse can not be shared. By default, the number of open connections is 5, with an additional 10 allowed.
+
+Internal to `prefect` this can be worked around by adding
+
+```
+kwargs["pool_size"] = 13
+kwargs["max_overflow"] = 30
+```
+to the `AsyncPostgresConfiguration.engine` method. 
+
+This seems to become a problem when in excess of 140 concurrent sub-flows are created. In implementing the above work around a new issue is raised. 
+
+Provided that fewer than 80 `SLURMCluster` based sub-flows are executed in a concurrent setting I think this is (and the next) error are unlikely to be a show stopper. 
+
+### TimeOutError
+
+It seems that from the above that when there are too many corountines running an `asyncio.exceptions.TimeoutError` will be raised. Likely, it seems to be a case that some coroutine has waited for too long in the event loop, deem old, and killed. 
+
+Whether this is an error unto itself or it is simple a result from the previous change to enlarge the `QueuePool` characteristics remains to be understood. 
+
+Provided that fewer than 80 `SLURMCluster` based sub-flows are executed in a concurrent setting I think this is (and the previous) error are unlikely to be a show stopper. 
+
