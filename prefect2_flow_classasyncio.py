@@ -6,6 +6,7 @@ from time import sleep
 
 import numpy as np 
 from prefect_dask.task_runners import DaskTaskRunner
+from prefect import get_run_logger
 from prefect import flow, task
 from dask_jobqueue import SLURMCluster
 
@@ -13,11 +14,16 @@ DOCKER_CONTAINER='nlknguyen/alpine-mpich'
 
 def print_result_collection(collection):
     print(f"Printing result collection of {len(collection)=}")
-    print(
-        "\n\n\n".join(
+    try:
+        print(
+            "\n\n\n".join(
             [c.result().strip() for c in collection]
+            )
         )
-    )
+    except:
+       "\n\n\n".join( 
+           [c.strip() for c in collection]
+        )
 
 
         
@@ -25,21 +31,33 @@ def print_result_collection(collection):
 # Tasks
 
 @task
+async def sleeper(*args):
+    subprocess.run(
+        "sleep 5", shell=True
+    )
+    return args
+
+
+@task
 def make_random_array(n):
-    print(f"Number of floats: {np.prod(n)}")
+    logger = get_run_logger()
+    logger.info('Tim was here')
+    logger.info(f"Number of floats: {np.prod(n)}")
     return np.random.random(n).astype('f4')
 
 
 @task
 async def srun_run(some_int=99):
 
-    print('Running srun business now')
-    print(f'Received {some_int=}')
+    logger = get_run_logger()
+
+    logger.info('Running srun business now')
+    logger.info(f'Received {some_int=}')
 
     random.seed(some_int)
     rand_sleep = random.randint(1,10)
-    print(f"Sleeping for {rand_sleep}")
-    sleep(rand_sleep)
+    logger.info(f"Sleeping for {rand_sleep}")
+    asyncio.sleep(rand_sleep)
 
     srun_str = (
         f'srun --mpi=pmi2 -N 3 -n 60 '
@@ -47,9 +65,11 @@ async def srun_run(some_int=99):
         f'./mpi_hello_world'
     )
 
-    # srun_str = (
-    #     f"sleep 2 && echo finished sleeping for {some_int}"
-    # )
+    logger.info(srun_str)
+
+    #return (f"I am returning now, and here is {srun_str=} "
+    #       f" amd the sleep was {rand_sleep=} "
+    #)
 
     result = subprocess.run(
         srun_str,
@@ -57,11 +77,17 @@ async def srun_run(some_int=99):
         capture_output=True,
         text=True
     )
- 
-    print(result.stderr)
-    print(result.stdout)
 
-    print(result.args)
+    logger.info('Finished running the subprocess')
+
+    logger.info(result.stderr)
+    logger.info(result.stdout)
+
+    logger.info(result.args)
+
+    #subprocess.run(
+    #    "sleep 5", shell=True
+    #)
 
     return ( 
         f"I am returning {some_int} and I was asleep for {rand_sleep} seconds \n"
@@ -113,21 +139,24 @@ def make_subflow(name, count):
         This function is turned into a flow from the main(), using 
         the create_run_subflow function. 
         """
-        srun_result = srun_run.submit(some_int)
+        srun_result = await srun_run.submit(some_int)
+        
+        (srun_result, *_) = await sleeper(srun_result)
 
-        return await srun_result
+        return srun_result
 
     return srun_flow
 
-@flow(
-    task_runner=DaskTaskRunner(
-        cluster_kwargs={
-            "n_workers": 1, 
-            "resources": {"process": 2, "threads_per_worker": 10}, 
-            "local_directory": os.getcwd()
-        },
-    )
-)
+#@flow(
+#    task_runner=DaskTaskRunner(
+#        cluster_kwargs={
+#            "n_workers": 1, 
+#            "resources": {"process": 2, "threads_per_worker": 10}, 
+#            "local_directory": os.getcwd()
+#        },
+#    )
+#)
+@flow
 async def main():
     """The main flow with a set of dummy operaitons
     """
